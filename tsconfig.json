@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2017",
+    "moduleResolution": "Node",
+    "module": "CommonJS"
+  },
+  "include": ["src/index.ts"]
+}
