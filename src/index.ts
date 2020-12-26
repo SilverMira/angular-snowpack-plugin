@@ -7,14 +7,16 @@ import {
   CompilerHost,
   CompilerOptions,
   createCompilerHost,
+  readConfiguration,
 } from '@angular/compiler-cli';
 import { ScriptTarget, ModuleKind, ModuleResolutionKind } from 'typescript';
 import { resolve, join } from 'path';
+import { promises as fs } from 'fs';
 import { compile } from './compile';
 
 const plugin: SnowpackPluginFactory = () => {
   const rootDir = 'src';
-  const sourceMap = true;
+  let sourceMap = true;
   let compilerHost: CompilerHost;
   const files = new Map();
 
@@ -55,7 +57,7 @@ const plugin: SnowpackPluginFactory = () => {
     name: 'custom-angular-snowpack-plugin',
     resolve: {
       input: ['.ts'],
-      output: ['.js'],
+      output: ['.js', '.ts'],
     },
     config() {
       console.log(`Config happened, compilerHost created`);
@@ -69,12 +71,6 @@ const plugin: SnowpackPluginFactory = () => {
     async load(options: PluginLoadOptions) {
       console.log(`Load happened: ${options.filePath}`);
       compileEntryPoints();
-      // const result = compile({
-      //   filePath: options.filePath,
-      //   compilerHost,
-      //   compilerOptions,
-      //   files,
-      // });
       const file = resolve(options.filePath).replace('.ts', '');
       let result;
       if (files.has(`${file}.js`) && files.has(`${file}.js.map`)) {
@@ -97,7 +93,10 @@ const plugin: SnowpackPluginFactory = () => {
           code: result?.code,
           map: sourceMap ? result?.map : undefined,
         },
-      };
+        '.ts': sourceMap
+          ? await fs.readFile(options.filePath, 'utf-8')
+          : undefined,
+      } as any;
     },
   };
 };
