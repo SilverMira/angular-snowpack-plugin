@@ -3,9 +3,10 @@ import {
   CompilerHost,
   CompilerOptions,
   createCompilerHost,
+  Program,
 } from '@angular/compiler-cli';
 import { readConfigFile, sys, parseJsonConfigFileContent } from 'typescript';
-import { resolve, join } from 'path';
+import { resolve, extname } from 'path';
 import { promises as fs } from 'fs';
 import { compile } from './compile';
 
@@ -15,11 +16,12 @@ const plugin: SnowpackPluginFactory = (options) => {
   let compilerHost: CompilerHost;
   let parsedCompilerOpts: CompilerOptions;
   const files = new Map();
+  const programs = new Map<string, Program>();
 
   let entryPointsCompiled = false;
   let entryPoints: string[] = [];
-  const compileEntryPoints = () => {
-    if (!entryPointsCompiled) {
+  const compileEntryPoints = (incremental = false) => {
+    if (!entryPointsCompiled || incremental) {
       for (const entryPoint of entryPoints) {
         pluginLog(`Entry Point: ${entryPoint}`);
         const filePath = resolve(entryPoint);
@@ -29,6 +31,7 @@ const plugin: SnowpackPluginFactory = (options) => {
           compilerOptions: parsedCompilerOpts,
           files,
           srcDir,
+          programs,
         });
       }
       entryPointsCompiled = true;
@@ -88,6 +91,23 @@ const plugin: SnowpackPluginFactory = (options) => {
         '.js': result,
         '.ts': sourceFile,
       } as any;
+    },
+    async onChange({ filePath }) {
+      pluginLog(`File Changed: ${filePath}`);
+      if (extname(filePath) === '.ts') {
+        console.time('incremental');
+        compile({
+          filePath: resolve('src/main.ts'),
+          compilerHost,
+          compilerOptions: parsedCompilerOpts,
+          files,
+          srcDir,
+          programs,
+        });
+        console.timeEnd('incremental');
+      }
+      // turn .html to .ts
+      else this.markChanged!(filePath.replace(extname(filePath), '.ts'));
     },
   };
 };
