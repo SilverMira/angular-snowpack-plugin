@@ -30,7 +30,7 @@ export const compile = ({
   const code = files.get(`${file}.js`);
 
   return {
-    code: (code ?? '').replace(/\/\/# sourceMappingURL.*/, ''),
+    code,
     map,
   };
 };
