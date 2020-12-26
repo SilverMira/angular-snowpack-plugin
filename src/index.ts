@@ -1,56 +1,42 @@
-import type {
-  PluginLoadOptions,
-  PluginTransformOptions,
-  SnowpackPluginFactory,
-} from 'snowpack';
+import type { PluginLoadOptions, SnowpackPluginFactory } from 'snowpack';
 import {
   CompilerHost,
   CompilerOptions,
   createCompilerHost,
-  readConfiguration,
 } from '@angular/compiler-cli';
-import { ScriptTarget, ModuleKind, ModuleResolutionKind } from 'typescript';
+import { readConfigFile, sys, parseJsonConfigFileContent } from 'typescript';
 import { resolve, join } from 'path';
 import { promises as fs } from 'fs';
 import { compile } from './compile';
 
-const plugin: SnowpackPluginFactory = () => {
-  const rootDir = 'src';
-  let sourceMap = true;
+const plugin: SnowpackPluginFactory = (options) => {
+  const srcDir = 'src';
+  let buildSourceMap = options.buildOptions.sourceMaps;
   let compilerHost: CompilerHost;
+  let parsedCompilerOpts: CompilerOptions;
   const files = new Map();
 
-  const compilerOptions: CompilerOptions = {
-    target: ScriptTarget.ESNext,
-    module: ModuleKind.ESNext,
-    lib: ['dom', 'es2015', 'es2017', 'es2018', 'es2019', 'es2020'],
-    rootDir: resolve(rootDir),
-    moduleResolution: ModuleResolutionKind.NodeJs,
-    esModuleInterop: true,
-    declaration: false,
-    experimentalDecorators: true,
-    emitDecoratorMetadata: true,
-    enableIvy: true,
-    sourceMap,
-  };
-
   let entryPointsCompiled = false;
-  const entryPoints = ['main.ts', 'polyfills.ts'];
+  let entryPoints: string[] = [];
   const compileEntryPoints = () => {
     if (!entryPointsCompiled) {
-      console.log('Compiling entry points...');
       for (const entryPoint of entryPoints) {
-        const filePath = resolve(join(rootDir, entryPoint));
+        pluginLog(`Entry Point: ${entryPoint}`);
+        const filePath = resolve(entryPoint);
         compile({
           filePath,
           compilerHost,
-          compilerOptions,
+          compilerOptions: parsedCompilerOpts,
           files,
+          srcDir,
         });
       }
-      console.log('Entry points compiled');
       entryPointsCompiled = true;
     }
+  };
+
+  const pluginLog = (contents: string) => {
+    console.log(`[AngularSnowpack] ${contents}`);
   };
 
   return {
@@ -60,42 +46,47 @@ const plugin: SnowpackPluginFactory = () => {
       output: ['.js', '.ts'],
     },
     config() {
-      console.log(`Config happened, compilerHost created`);
-      compilerHost = createCompilerHost({ options: compilerOptions });
+      const parsedConfig = readConfigFile('tsconfig.app.json', sys.readFile);
+      const parsedCommandLine = parseJsonConfigFileContent(
+        parsedConfig.config,
+        sys,
+        './'
+      );
+      parsedCompilerOpts = parsedCommandLine.options;
+      entryPoints = parsedCommandLine.fileNames;
+      compilerHost = createCompilerHost({ options: parsedCompilerOpts });
       compilerHost.writeFile = (fileName, contents) => {
-        console.log(`CompilerHost written file: ${fileName}`);
-        const fileKey = resolve(fileName);
-        files.set(fileKey, contents.replace(/\/\/# sourceMappingURL.*/, ''));
+        fileName = resolve(fileName).replace(
+          resolve(parsedCompilerOpts.outDir || ''),
+          ''
+        );
+        pluginLog(`Compiling : ${fileName}`);
+        files.set(fileName, contents.replace(/\/\/# sourceMappingURL.*/, ''));
       };
     },
     async load(options: PluginLoadOptions) {
-      console.log(`Load happened: ${options.filePath}`);
+      const sourceMap = options.isDev || buildSourceMap;
+      pluginLog(`Loading: ${options.filePath}`);
       compileEntryPoints();
-      const file = resolve(options.filePath).replace('.ts', '');
-      let result;
-      if (files.has(`${file}.js`) && files.has(`${file}.js.map`)) {
-        result = {
-          code: files.get(`${file}.js`),
-          map: files.get(`${file}.js.map`),
-        };
-      } else {
-        console.log(`Compiling new file: ${file}`);
-        result = compile({
-          filePath: options.filePath,
-          compilerHost,
-          compilerOptions,
-          files,
-        });
-      }
-      debugger;
-      return {
-        '.js': {
-          code: result?.code,
-          map: sourceMap ? result?.map : undefined,
-        },
-        '.ts': sourceMap
+      const filePath = resolve(options.filePath).replace(resolve(srcDir), '');
+      const fileBaseName = filePath.replace('.ts', '');
+      const result = { code: undefined, map: undefined } as any;
+      const sourceFile = { code: undefined, map: undefined } as any;
+      if (
+        files.has(`${fileBaseName}.js`) &&
+        files.has(`${fileBaseName}.js.map`)
+      ) {
+        result.code = files.get(`${fileBaseName}.js`);
+        result.map = sourceMap
+          ? files.get(`${fileBaseName}.js.map`)
+          : undefined;
+        sourceFile.code = sourceMap
           ? await fs.readFile(options.filePath, 'utf-8')
-          : undefined,
+          : undefined;
+      }
+      return {
+        '.js': result,
+        '.ts': sourceFile,
       } as any;
     },
   };
