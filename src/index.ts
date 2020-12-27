@@ -6,9 +6,9 @@ import {
   Program,
 } from '@angular/compiler-cli';
 import { readConfigFile, sys, parseJsonConfigFileContent } from 'typescript';
-import { resolve, extname } from 'path';
+import { resolve, extname, join } from 'path';
 import { promises as fs } from 'fs';
-import { compile } from './compile';
+import { compile, RecompileFunction, watchCompile } from './compile';
 
 const plugin: SnowpackPluginFactory = (options) => {
   const srcDir = 'src';
@@ -20,26 +20,38 @@ const plugin: SnowpackPluginFactory = (options) => {
 
   let entryPointsCompiled = false;
   let entryPoints: string[] = [];
-  const compileEntryPoints = (incremental = false) => {
-    if (!entryPointsCompiled || incremental) {
-      for (const entryPoint of entryPoints) {
-        pluginLog(`Entry Point: ${entryPoint}`);
-        const filePath = resolve(entryPoint);
-        compile({
-          filePath,
-          compilerHost,
-          compilerOptions: parsedCompilerOpts,
-          files,
-          srcDir,
-          programs,
-        });
-      }
+  let recompile: RecompileFunction;
+  let recompiledFiles: string[] = [];
+
+  const compileEntryPoints = () => {
+    if (!entryPointsCompiled) {
+      const rootNames = entryPoints.map((e) => resolve(e));
+      compile({
+        rootNames,
+        compilerHost,
+        compilerOptions: parsedCompilerOpts,
+        files,
+        srcDir,
+        programs,
+      });
+      entryPointsCompiled = true;
+    }
+  };
+
+  const compileEntryPointsWatch = () => {
+    if (!entryPointsCompiled) {
+      const rootNames = entryPoints.map((e) => resolve(e));
+      recompile = watchCompile({
+        rootNames,
+        compilerHost,
+        compilerOptions: parsedCompilerOpts,
+      });
       entryPointsCompiled = true;
     }
   };
 
   const pluginLog = (contents: string) => {
-    console.log(`[AngularSnowpack] ${contents}`);
+    console.log(`[angular] ${contents}`);
   };
 
   return {
@@ -70,7 +82,8 @@ const plugin: SnowpackPluginFactory = (options) => {
     async load(options: PluginLoadOptions) {
       const sourceMap = options.isDev || buildSourceMap;
       pluginLog(`Loading: ${options.filePath}`);
-      compileEntryPoints();
+      if (!options.isDev) compileEntryPoints();
+      else compileEntryPointsWatch();
       const filePath = resolve(options.filePath).replace(resolve(srcDir), '');
       const fileBaseName = filePath.replace('.ts', '');
       const result = { code: undefined, map: undefined } as any;
@@ -94,16 +107,21 @@ const plugin: SnowpackPluginFactory = (options) => {
     },
     async onChange({ filePath }) {
       pluginLog(`File Changed: ${filePath}`);
-      if (extname(filePath) === '.ts') {
+      const doRecompile = !recompiledFiles.includes(filePath);
+      if (!doRecompile)
+        recompiledFiles.splice(recompiledFiles.indexOf(filePath), 1);
+      else if (extname(filePath) === '.ts' && doRecompile) {
         console.time('incremental');
-        compile({
-          filePath: resolve('src/main.ts'),
-          compilerHost,
-          compilerOptions: parsedCompilerOpts,
-          files,
-          srcDir,
-          programs,
-        });
+        const recompiledResult = recompile(filePath);
+        const files = recompiledResult!.recompiledFiles
+          .map((file) => resolve(join(srcDir, file)))
+          .filter((file) => extname(file) === '.js')
+          .map((file) => file.replace(extname(file), '.ts'))
+          .filter((file) => file !== filePath);
+        for (const file of files!) {
+          recompiledFiles.push(file);
+          this.markChanged!(file);
+        }
         console.timeEnd('incremental');
       }
       // turn .html to .ts

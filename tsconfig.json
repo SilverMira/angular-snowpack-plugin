@@ -6,7 +6,8 @@
     "strict": true,
     "target": "ES2017",
     "moduleResolution": "Node",
-    "module": "CommonJS"
+    "module": "CommonJS",
+    "esModuleInterop": true
   },
   "include": ["src/index.ts"]
 }
