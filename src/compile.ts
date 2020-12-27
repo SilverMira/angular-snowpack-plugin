@@ -11,9 +11,6 @@ export interface CompileArgs {
   rootNames: string[];
   compilerHost: CompilerHost;
   compilerOptions: CompilerOptions;
-  files?: Map<string, string>;
-  srcDir?: string;
-  programs?: Map<string, Program>;
 }
 
 export interface CompilationResult {
@@ -28,7 +25,8 @@ export interface CacheEntry {
 }
 
 export type RecompileFunction = (
-  fileName: string
+  fileName: string,
+  src: string
 ) => {
   program: Program;
   emitResult: EmitResult;
@@ -73,7 +71,7 @@ export const watchCompile = ({
     return entry;
   };
 
-  // Setup compilerHost to cache
+  // Setup compilerHost to use cache
   const oriWriteFile = compilerHost.writeFile;
   compilerHost.writeFile = (
     fileName,
@@ -82,7 +80,9 @@ export const watchCompile = ({
     onError,
     sourceFiles
   ) => {
-    const srcRelativePath = path.normalize(fileName.replace('out-tsc/app', ''));
+    const srcRelativePath = path
+      .resolve(fileName)
+      .replace(path.resolve(compilerOptions.outDir!), '');
     compiledFiles.add(srcRelativePath);
     recompiledFiles.add(srcRelativePath);
     return oriWriteFile(
@@ -106,14 +106,12 @@ export const watchCompile = ({
     if (!cache.sf) cache.sf = oriGetSourceFile(fileName, languageVersion);
     return cache.sf;
   };
-
   const oriReadFile = compilerHost.readFile;
   compilerHost.readFile = (fileName) => {
     const cache = getCacheEntry(fileName);
     if (!cache.content) cache.content = oriReadFile(fileName);
     return cache.content;
   };
-
   compilerHost.getModifiedResourceFiles = () => {
     return modifiedFile;
   };
@@ -126,12 +124,13 @@ export const watchCompile = ({
   });
   cachedProgram = firstCompilation.program;
 
-  const recompile: RecompileFunction = (fileName: string) => {
+  const recompile: RecompileFunction = (fileName: string, src: string) => {
+    // perhaps this function need debouncing like in perform_watch.ts
     fileName = path.normalize(fileName);
     fileCache.delete(fileName);
     const compiledFilePath = path
       .resolve(fileName)
-      .replace(path.resolve(path.join(process.cwd(), 'src')), '');
+      .replace(path.resolve(path.join(process.cwd(), src)), '');
     if (!compiledFiles.has(compiledFilePath)) {
       modifiedFile.add(fileName);
       compiledFiles.clear();
