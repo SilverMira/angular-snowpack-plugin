@@ -1,7 +1,9 @@
 import {
   CompilerHost,
   CompilerOptions,
-  createProgram,
+  Diagnostics,
+  performCompilation,
+  PerformCompilationResult,
   Program,
 } from '@angular/compiler-cli';
 import { EmitResult, SourceFile } from 'typescript';
@@ -13,41 +15,35 @@ export interface CompileArgs {
   compilerOptions: CompilerOptions;
 }
 
-export interface CompilationResult {
-  program: Program;
-  emitResult: EmitResult;
-}
-
 export interface CacheEntry {
   exists?: boolean;
   sf?: SourceFile;
   content?: string;
 }
 
+export interface WatchCompilationResult {
+  program?: Program;
+  emitResult?: EmitResult;
+  recompiledFiles: string[];
+  diagnostics: Diagnostics;
+}
+
 export type RecompileFunction = (
   fileName: string,
   src: string
-) => {
-  program: Program;
-  emitResult: EmitResult;
-  recompiledFiles: string[];
-} | null;
+) => WatchCompilationResult | null;
 
 export const compile = ({
   rootNames,
   compilerHost,
   compilerOptions,
-}: CompileArgs): CompilationResult => {
-  const program = createProgram({
-    rootNames: rootNames,
-    options: compilerOptions,
+}: CompileArgs): PerformCompilationResult => {
+  const compilationResult = performCompilation({
+    rootNames,
     host: compilerHost,
+    options: compilerOptions,
   });
-  const emitResult = program.emit();
-  return {
-    program,
-    emitResult,
-  };
+  return compilationResult;
 };
 
 export const watchCompile = ({
@@ -137,22 +133,22 @@ export const watchCompile = ({
       recompiledFiles.clear();
       const oldProgram = cachedProgram;
       cachedProgram = undefined;
-      const newProgram = createProgram({
+      const recompileResult = performCompilation({
         rootNames,
         host: compilerHost,
         options: compilerOptions,
         oldProgram,
       });
-      const newEmitResult = newProgram.emit();
-      cachedProgram = newProgram;
+      cachedProgram = recompileResult.program;
       modifiedFile.clear();
       return {
-        program: newProgram,
-        emitResult: newEmitResult,
+        program: recompileResult.program,
+        emitResult: recompileResult.emitResult,
         recompiledFiles: [...recompiledFiles],
+        diagnostics: recompileResult.diagnostics,
       };
     }
     return null;
   };
-  return recompile;
+  return { firstCompilation, recompile };
 };

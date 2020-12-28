@@ -7,7 +7,8 @@
     "target": "ES2017",
     "moduleResolution": "Node",
     "module": "CommonJS",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "outDir": "dist"
   },
   "include": ["src/index.ts"]
 }
