@@ -15,6 +15,7 @@ import ts, { FormatDiagnosticsHost } from 'typescript';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { compile, RecompileFunction, watchCompile } from './compile';
+import execa from 'execa';
 
 export interface AngularSnowpackPluginOptions {
   /** @default 'src' */
@@ -23,6 +24,8 @@ export interface AngularSnowpackPluginOptions {
   logLevel?: 'normal' | 'debug';
   /** @default 'tsconfig.app.json' */
   tsConfig?: string;
+  /** @default [] */
+  ngccTargets?: string[];
 }
 
 /**
@@ -36,6 +39,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   const srcDir = pluginOptions?.src || 'src';
   const logLevel = pluginOptions?.logLevel || 'normal';
   const tsConfigPath = pluginOptions?.tsConfig || 'tsconfig.app.json';
+  const ngccTargets = pluginOptions?.ngccTargets || [];
   const buildSourceMap = options.buildOptions.sourceMaps;
   let compilerHost: CompilerHost;
   let parsedTSConfig: CompilerOptions;
@@ -67,7 +71,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
           compilerOptions: parsedTSConfig,
         });
       }
-      console.time('[angular] Source built in');
+      console.timeEnd('[angular] Source built in');
       rootNamesCompiled = true;
     }
   };
@@ -103,11 +107,28 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
     },
   };
 
+  const runNgcc = async () => {
+    ngccTargets.unshift('@angular/platform-browser');
+    for (const target of ngccTargets) {
+      const ngcc = execa('ngcc', ['-t', target]);
+      ngcc.stdout?.pipe(process.stdout);
+      await ngcc;
+    }
+    pluginLog('***************');
+    pluginLog(
+      'NGCC finished. Run "snowpack --reload" if strange errors regarding ivy appears during dev mode'
+    );
+    pluginLog('***************');
+  };
+
   return {
     name: 'angular',
     resolve: {
       input: ['.ts'],
       output: ['.js', '.ts'],
+    },
+    async run() {
+      await runNgcc();
     },
     config() {
       const parsedCommandLine = readAndParseTSConfig(tsConfigPath);
