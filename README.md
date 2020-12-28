@@ -8,7 +8,7 @@ This is a highly experimental snowpack plugin. Has only been tested to work on b
 npm i --save-dev angular-snowpack-plugin
 ```
 
-```json
+```js
 // snowpack.config.js
 
 {
@@ -27,9 +27,9 @@ npm i --save-dev angular-snowpack-plugin
 ## Plugin Options
 
 | Name          | Type       | Description                                                                                                                      | Default                          |
-| ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------- |
+| ------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
 | `src`         | `string`   | Relative path to the source directory of your angular project.                                                                   | `src`                            |
-| `logLevel`    | `'normal'  | 'debug'`                                                                                                                         | Logging verbosity of the plugin. | `normal` |
+| `logLevel`    | `'normal'  \| 'debug'` |   Logging verbosity of the plugin. | `normal` |
 | `tsConfig`    | `string`   | Relative path to the build options tsconfig of your Angular project, check in `angular.json`.                                    | `tsconfig.app.json`              |
 | `ngccTargets` | `string[]` | `ngcc` targets that the plugin will attempt to run `ngcc` with on each startup, values here will be extending the default value. | `['@angular/platform-browser']`  |
 
