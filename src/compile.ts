@@ -1,31 +1,21 @@
-import {
-  CompilerHost,
-  CompilerOptions,
-  Diagnostics,
-  performCompilation,
-  PerformCompilationResult,
-  Program,
-} from '@angular/compiler-cli';
-import { EmitResult, SourceFile } from 'typescript';
+import * as ng from '@angular/compiler-cli';
+import ts from 'typescript';
 import path from 'path';
 
 export interface CompileArgs {
   rootNames: string[];
-  compilerHost: CompilerHost;
-  compilerOptions: CompilerOptions;
+  compilerHost: ng.CompilerHost;
+  compilerOptions: ng.CompilerOptions;
 }
 
 export interface CacheEntry {
   exists?: boolean;
-  sf?: SourceFile;
+  sf?: ts.SourceFile;
   content?: string;
 }
 
-export interface WatchCompilationResult {
-  program?: Program;
-  emitResult?: EmitResult;
+export interface WatchCompilationResult extends ng.PerformCompilationResult {
   recompiledFiles: string[];
-  diagnostics: Diagnostics;
 }
 
 export type RecompileFunction = (
@@ -37,8 +27,8 @@ export const compile = ({
   rootNames,
   compilerHost,
   compilerOptions,
-}: CompileArgs): PerformCompilationResult => {
-  const compilationResult = performCompilation({
+}: CompileArgs): ng.PerformCompilationResult => {
+  const compilationResult = ng.performCompilation({
     rootNames,
     host: compilerHost,
     options: compilerOptions,
@@ -54,8 +44,7 @@ export const watchCompile = ({
   const compiledFiles = new Set<string>();
   const fileCache = new Map<string, CacheEntry>();
   const modifiedFile = new Set<string>();
-  const recompiledFiles = new Set<string>();
-  let cachedProgram: Program | undefined;
+  let cachedProgram: ng.Program | undefined;
 
   const getCacheEntry = (fileName: string) => {
     fileName = path.normalize(fileName);
@@ -80,7 +69,6 @@ export const watchCompile = ({
       .resolve(fileName)
       .replace(path.resolve(compilerOptions.outDir!), '');
     compiledFiles.add(srcRelativePath);
-    recompiledFiles.add(srcRelativePath);
     return oriWriteFile(
       fileName,
       data,
@@ -108,6 +96,17 @@ export const watchCompile = ({
     if (!cache.content) cache.content = oriReadFile(fileName);
     return cache.content;
   };
+  // Read resource is a optional function,
+  // it has priority over readFile when loading resources (html/css),
+  // async file processing will require a custom performCompilation to run `program.loadNgStuctureAsync()`
+  const oriReadResource = compilerHost.readResource;
+  if (oriReadResource)
+    compilerHost.readResource = (fileName) => {
+      const cache = getCacheEntry(fileName);
+      if (!cache.content) cache.content = oriReadResource(fileName) as string;
+      return cache.content;
+    };
+
   compilerHost.getModifiedResourceFiles = () => {
     return modifiedFile;
   };
@@ -130,10 +129,9 @@ export const watchCompile = ({
     if (!compiledFiles.has(compiledFilePath)) {
       modifiedFile.add(fileName);
       compiledFiles.clear();
-      recompiledFiles.clear();
       const oldProgram = cachedProgram;
       cachedProgram = undefined;
-      const recompileResult = performCompilation({
+      const recompileResult = ng.performCompilation({
         rootNames,
         host: compilerHost,
         options: compilerOptions,
@@ -144,7 +142,7 @@ export const watchCompile = ({
       return {
         program: recompileResult.program,
         emitResult: recompileResult.emitResult,
-        recompiledFiles: [...recompiledFiles],
+        recompiledFiles: [...compiledFiles],
         diagnostics: recompileResult.diagnostics,
       };
     }

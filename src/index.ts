@@ -13,7 +13,7 @@ import {
 } from '@angular/compiler-cli';
 import ts, { FormatDiagnosticsHost } from 'typescript';
 import path from 'path';
-import { promises as fs } from 'fs';
+import { promises as fs, readFileSync } from 'fs';
 import { compile, RecompileFunction, watchCompile } from './compile';
 import execa from 'execa';
 
@@ -144,6 +144,11 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
           fileName,
           contents.replace(/\/\/# sourceMappingURL.*/, '') // required, to prevent multiple sourceMappingUrl as snowpack will append it if sourceMaps is enabled
         );
+      };
+      // TODO: Pipe .css resource into preprocessors
+      compilerHost.readResource = (fileName) => {
+        pluginDebug(`Resource Read: ${fileName}`);
+        return readFileSync(fileName, 'utf-8');
       };
     },
     async load(options: PluginLoadOptions) {
