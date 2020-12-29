@@ -14,7 +14,14 @@ import {
 import ts, { FormatDiagnosticsHost } from 'typescript';
 import path from 'path';
 import { promises as fs, readFileSync } from 'fs';
-import { compile, RecompileFunction, watchCompile } from './compile';
+import {
+  compile,
+  compileAsync,
+  RecompileFunction,
+  RecompileFunctionAsync,
+  watchCompile,
+  watchCompileAsync,
+} from './compile';
 import execa from 'execa';
 
 export interface AngularSnowpackPluginOptions {
@@ -47,17 +54,26 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   const cwd = path.resolve(process.cwd());
 
   let rootNamesCompiled: boolean = false;
+  let rootNamesCompiling: boolean = false;
   let rootNames: string[] = [];
-  let recompile: RecompileFunction;
+  let recompile: RecompileFunctionAsync;
   let recompiledFiles: string[] = [];
   let compilationResult: PerformCompilationResult;
 
-  const compileRootNames = (isDev = false) => {
-    if (!rootNamesCompiled) {
+  let compilationReadyCb: (() => void)[] = [];
+  const isCompilationReady = () => {
+    return new Promise<void>((resolve) => {
+      compilationReadyCb.push(resolve);
+    });
+  };
+
+  const compileRootNames = async (isDev = false) => {
+    if (!rootNamesCompiled && !rootNamesCompiling) {
+      rootNamesCompiling = true;
       pluginLog('Building source...');
       console.time('[angular] Source built in');
       if (isDev) {
-        const watchCompileResult = watchCompile({
+        const watchCompileResult = await watchCompileAsync({
           rootNames,
           compilerHost,
           compilerOptions: parsedTSConfig,
@@ -65,14 +81,21 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
         recompile = watchCompileResult.recompile;
         compilationResult = watchCompileResult.firstCompilation;
       } else {
-        compilationResult = compile({
+        compilationResult = await compileAsync({
           rootNames,
           compilerHost,
           compilerOptions: parsedTSConfig,
         });
       }
       console.timeEnd('[angular] Source built in');
+      for (const cb of compilationReadyCb) {
+        cb();
+      }
+      compilationReadyCb = [];
+      rootNamesCompiling = false;
       rootNamesCompiled = true;
+    } else if (rootNamesCompiling) {
+      return await isCompilationReady();
     }
   };
 
@@ -146,15 +169,15 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
         );
       };
       // TODO: Pipe .css resource into preprocessors
-      compilerHost.readResource = (fileName) => {
+      compilerHost.readResource = async (fileName) => {
         pluginDebug(`Resource Read: ${fileName}`);
-        return readFileSync(fileName, 'utf-8');
+        return await fs.readFile(fileName, 'utf-8');
       };
     },
     async load(options: PluginLoadOptions) {
       const sourceMap = options.isDev || buildSourceMap;
       pluginDebug(`Loading: ${options.filePath}`);
-      compileRootNames(options.isDev);
+      await compileRootNames(options.isDev);
       const relativeFilePathFromSrc = path
         .resolve(options.filePath)
         .replace(path.resolve(srcDir), '');
@@ -192,7 +215,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
         recompiledFiles.splice(recompiledFiles.indexOf(filePath), 1);
       else {
         console.time('[angular] Incremental Build Finished, Took');
-        const recompiledResult = recompile(filePath, srcDir);
+        const recompiledResult = await recompile(filePath, srcDir);
         console.timeEnd('[angular] Incremental Build Finished, Took');
         if (recompiledResult) compilationResult = recompiledResult;
         // map the compiled files path back to its source
