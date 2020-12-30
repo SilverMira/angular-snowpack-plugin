@@ -4,14 +4,8 @@ import type {
   SnowpackConfig,
   SnowpackPluginFactory,
 } from 'snowpack';
-import {
-  CompilerHost,
-  CompilerOptions,
-  createCompilerHost,
-  formatDiagnostics,
-  PerformCompilationResult,
-} from '@angular/compiler-cli';
-import ts, { FormatDiagnosticsHost } from 'typescript';
+import * as ng from '@angular/compiler-cli';
+import ts from 'typescript';
 import path from 'path';
 import { promises as fs } from 'fs';
 import {
@@ -46,8 +40,8 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   const tsConfigPath = pluginOptions?.tsConfig || 'tsconfig.app.json';
   const ngccTargets = pluginOptions?.ngccTargets || [];
   const buildSourceMap = options.buildOptions.sourceMaps;
-  let compilerHost: CompilerHost;
-  let parsedTSConfig: CompilerOptions;
+  let compilerHost: ng.CompilerHost;
+  let parsedTSConfig: ng.CompilerOptions;
   const builtSourceFiles = new Map<string, string>();
   const cwd = path.resolve(process.cwd());
   const styleHandler = createStyleHandler();
@@ -57,7 +51,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   let rootNames: string[] = [];
   let recompile: RecompileFunctionAsync;
   let recompiledFiles: string[] = [];
-  let compilationResult: PerformCompilationResult;
+  let compilationResult: ng.PerformCompilationResult;
 
   let compilationReadyCb: (() => void)[] = [];
   const isCompilationReady = () => {
@@ -106,27 +100,16 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
     if (logLevel === 'debug') pluginLog(contents);
   };
 
-  const readAndParseTSConfig = (configFile: string): ts.ParsedCommandLine => {
+  const readAndParseTSConfig = (configFile: string): ng.ParsedConfiguration => {
     configFile = path.resolve(configFile);
-    const parsedConfig = ts.readConfigFile(configFile, ts.sys.readFile);
-    const parsedCommandLine = ts.parseJsonConfigFileContent(
-      parsedConfig.config,
-      ts.sys,
-      cwd
-    );
-    return parsedCommandLine;
+    const parsedConfig = ng.readConfiguration(configFile);
+    return parsedConfig;
   };
 
-  const tsFormatDiagnosticHost: FormatDiagnosticsHost = {
-    getCanonicalFileName(fileName) {
-      return path.basename(path.resolve(fileName)) + path.extname(fileName);
-    },
-    getCurrentDirectory() {
-      return cwd;
-    },
-    getNewLine() {
-      return '\n';
-    },
+  const tsFormatDiagnosticHost: ts.FormatDiagnosticsHost = {
+    getCanonicalFileName: (fileName) => fileName,
+    getCurrentDirectory: () => cwd,
+    getNewLine: () => '\n',
   };
 
   const runNgcc = async () => {
@@ -153,10 +136,10 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       await runNgcc();
     },
     config() {
-      const parsedCommandLine = readAndParseTSConfig(tsConfigPath);
-      parsedTSConfig = parsedCommandLine.options;
-      rootNames = parsedCommandLine.fileNames.map((file) => path.resolve(file));
-      compilerHost = createCompilerHost({ options: parsedTSConfig });
+      const parsedConfig = readAndParseTSConfig(tsConfigPath);
+      parsedTSConfig = parsedConfig.options;
+      rootNames = parsedConfig.rootNames.map((file) => path.resolve(file));
+      compilerHost = ng.createCompilerHost({ options: parsedTSConfig });
       compilerHost.writeFile = (fileName, contents) => {
         fileName = path
           .resolve(fileName)
@@ -167,7 +150,6 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
           contents.replace(/\/\/# sourceMappingURL.*/, '') // required, to prevent multiple sourceMappingUrl as snowpack will append it if sourceMaps is enabled
         );
       };
-      // TODO: Pipe .css resource into preprocessors
       compilerHost.readResource = async (fileName) => {
         pluginDebug(`Resource Read: ${fileName}`);
         const contents = await fs.readFile(fileName, 'utf-8');
@@ -192,7 +174,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       const sourceFile: SnowpackBuiltFile = {} as any;
       // Throw pretty diagnostics when error happened during compilation
       if (compilationResult.diagnostics.length > 0) {
-        const formatted = formatDiagnostics(
+        const formatted = ng.formatDiagnostics(
           compilationResult.diagnostics,
           tsFormatDiagnosticHost
         );
@@ -240,6 +222,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
         }
       }
     },
+    async transform({ id }) {},
   };
 };
 
