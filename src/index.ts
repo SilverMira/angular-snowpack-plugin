@@ -13,15 +13,13 @@ import {
 } from '@angular/compiler-cli';
 import ts, { FormatDiagnosticsHost } from 'typescript';
 import path from 'path';
-import { promises as fs, readFileSync } from 'fs';
+import { promises as fs } from 'fs';
 import {
-  compile,
   compileAsync,
-  RecompileFunction,
   RecompileFunctionAsync,
-  watchCompile,
   watchCompileAsync,
 } from './compile';
+import { createStyleHandler } from './stylehandler';
 import execa from 'execa';
 
 export interface AngularSnowpackPluginOptions {
@@ -52,6 +50,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   let parsedTSConfig: CompilerOptions;
   const builtSourceFiles = new Map<string, string>();
   const cwd = path.resolve(process.cwd());
+  const styleHandler = createStyleHandler();
 
   let rootNamesCompiled: boolean = false;
   let rootNamesCompiling: boolean = false;
@@ -171,7 +170,14 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       // TODO: Pipe .css resource into preprocessors
       compilerHost.readResource = async (fileName) => {
         pluginDebug(`Resource Read: ${fileName}`);
-        return await fs.readFile(fileName, 'utf-8');
+        const contents = await fs.readFile(fileName, 'utf-8');
+        if (styleHandler.needProcess(fileName)) {
+          pluginDebug(`Preprocessing Style: ${fileName}`);
+          const builtStyle = await styleHandler.process({ fileName, contents });
+          return builtStyle.css;
+        } else {
+          return contents;
+        }
       };
     },
     async load(options: PluginLoadOptions) {
