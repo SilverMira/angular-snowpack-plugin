@@ -15,14 +15,26 @@ import {
 } from './compile';
 import { createStyleHandler } from './stylehandler';
 import execa from 'execa';
+import {
+  AngularCriticalFiles,
+  AngularJsonWrapper,
+  readAngularJson,
+} from './configParser';
 
 export interface AngularSnowpackPluginOptions {
   /** @default 'src' */
   src?: string;
   /** @default 'normal' */
   logLevel?: 'normal' | 'debug';
-  /** @default 'tsconfig.app.json' */
+  /**
+   * @default 'tsconfig.app.json'
+   * @deprecated tsconfig path will now be determined via angular.json
+   */
   tsConfig?: string;
+  /** @default 'angular.json' */
+  angularJson?: string;
+  /** @default defaultProject in angular.json */
+  angularProject?: string;
   /** @default [] */
   ngccTargets?: string[];
 }
@@ -38,10 +50,14 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   const srcDir = pluginOptions?.src || 'src';
   const logLevel = pluginOptions?.logLevel || 'normal';
   const tsConfigPath = pluginOptions?.tsConfig || 'tsconfig.app.json';
+  const angularJsonPath = pluginOptions?.angularJson || 'angular.json';
   const ngccTargets = pluginOptions?.ngccTargets || [];
+  const angularProject = pluginOptions?.angularProject;
   const buildSourceMap = options.buildOptions.sourceMaps;
   let compilerHost: ng.CompilerHost;
   let parsedTSConfig: ng.CompilerOptions;
+  let parsedAngularJson: AngularJsonWrapper;
+  let angularCriticalFiles: AngularCriticalFiles;
   const builtSourceFiles = new Map<string, string>();
   const cwd = path.resolve(process.cwd());
   const styleHandler = createStyleHandler();
@@ -136,7 +152,14 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       await runNgcc();
     },
     config() {
-      const parsedConfig = readAndParseTSConfig(tsConfigPath);
+      const angularJsonReadResult = readAngularJson(angularJsonPath);
+      parsedAngularJson = angularJsonReadResult;
+      angularCriticalFiles = angularJsonReadResult.getResolvedFilePaths(
+        angularProject
+      );
+      const parsedConfig = readAndParseTSConfig(
+        angularCriticalFiles.tsConfig || tsConfigPath
+      );
       parsedTSConfig = parsedConfig.options;
       rootNames = parsedConfig.rootNames.map((file) => path.resolve(file));
       compilerHost = ng.createCompilerHost({ options: parsedTSConfig });
@@ -222,7 +245,47 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
         }
       }
     },
-    async transform({ id }) {},
+    async transform({ id, contents }) {
+      if (path.resolve(id) === angularCriticalFiles.index) {
+        // responsible for adding global styles, scripts as defined in angular.json
+        const { index } = angularCriticalFiles;
+        const styles = angularCriticalFiles.styles.map(
+          (style) =>
+            `<link rel="stylesheet" href="${path
+              .relative(path.dirname(index), style)
+              .replace(path.extname(style), '.css')}">`
+        );
+        const scripts = angularCriticalFiles.scripts.map(
+          (script) =>
+            `<script defer type="module" src="${path
+              .relative(path.dirname(index), script)
+              .replace(path.extname(script), '.js')}"></script>`
+        );
+        const polyfills = `<script defer type="module" src="${path
+          .relative(path.dirname(index), angularCriticalFiles.polyfills)
+          .replace(
+            path.extname(angularCriticalFiles.polyfills),
+            '.js'
+          )}"></script>`;
+        const main = `<script defer type="module" src="${path
+          .relative(path.dirname(index), angularCriticalFiles.main)
+          .replace(path.extname(angularCriticalFiles.main), '.js')}"></script>`;
+        return contents
+          .toString('utf-8')
+          .replace(
+            '</head>',
+            `${styles.join('\n')}
+          </head>`
+          )
+          .replace(
+            '</app-root>',
+            `</app-root>
+          ${polyfills}
+          ${main}
+          ${scripts.join('\n')}`
+          );
+      }
+    },
   };
 };
 
