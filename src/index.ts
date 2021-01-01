@@ -25,11 +25,6 @@ export interface AngularSnowpackPluginOptions {
   src?: string;
   /** @default 'normal' */
   logLevel?: 'normal' | 'debug';
-  /**
-   * @default 'tsconfig.app.json'
-   * @deprecated tsconfig path will now be determined via angular.json
-   */
-  tsConfig?: string;
   /** @default 'angular.json' */
   angularJson?: string;
   /** @default defaultProject in angular.json */
@@ -48,7 +43,6 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
 ) => {
   const srcDir = pluginOptions?.src || 'src';
   const logLevel = pluginOptions?.logLevel || 'normal';
-  const tsConfigPath = pluginOptions?.tsConfig || 'tsconfig.app.json';
   const angularJsonPath = pluginOptions?.angularJson || 'angular.json';
   const ngccTargets = pluginOptions?.ngccTargets || [];
   const angularProject = pluginOptions?.angularProject;
@@ -142,6 +136,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
 
   return {
     name: 'angular',
+    knownEntrypoints: ['@angular/common'],
     resolve: {
       input: ['.ts'],
       output: ['.js', '.ts'],
@@ -155,9 +150,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       angularCriticalFiles = angularJsonReadResult.getResolvedFilePaths(
         angularProject
       );
-      const parsedConfig = readAndParseTSConfig(
-        angularCriticalFiles.tsConfig || tsConfigPath
-      );
+      const parsedConfig = readAndParseTSConfig(angularCriticalFiles.tsConfig);
       parsedTSConfig = parsedConfig.options;
       rootNames = parsedConfig.rootNames.map((file) => path.resolve(file));
       compilerHost = ng.createCompilerHost({ options: parsedTSConfig });
