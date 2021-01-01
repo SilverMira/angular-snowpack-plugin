@@ -71,9 +71,10 @@ export const watchCompile = ({
     onError,
     sourceFiles
   ) => {
-    const srcRelativePath = path
-      .resolve(fileName)
-      .replace(path.resolve(compilerOptions.outDir!), '');
+    const srcRelativePath = path.relative(
+      path.resolve(compilerOptions.outDir!),
+      path.resolve(fileName)
+    );
     compiledFiles.add(srcRelativePath);
     return oriWriteFile(
       fileName,
@@ -129,9 +130,10 @@ export const watchCompile = ({
     // perhaps this function need debouncing like in perform_watch.ts
     fileName = path.normalize(fileName);
     fileCache.delete(fileName);
-    const compiledFilePath = path
-      .resolve(fileName)
-      .replace(path.resolve(path.join(process.cwd(), src)), '');
+    const compiledFilePath = path.relative(
+      path.resolve(src),
+      path.resolve(fileName)
+    );
     if (!compiledFiles.has(compiledFilePath)) {
       modifiedFile.add(fileName);
       compiledFiles.clear();
@@ -249,9 +251,10 @@ export const watchCompileAsync = async ({
     onError,
     sourceFiles
   ) => {
-    const srcRelativePath = path
-      .resolve(fileName)
-      .replace(path.resolve(compilerOptions.outDir!), '');
+    const srcRelativePath = path.relative(
+      path.resolve(compilerOptions.outDir!),
+      path.resolve(fileName)
+    );
     compiledFiles.add(srcRelativePath);
     return oriWriteFile(
       fileName,
@@ -311,9 +314,10 @@ export const watchCompileAsync = async ({
     // perhaps this function need debouncing like in perform_watch.ts
     fileName = path.normalize(fileName);
     fileCache.delete(fileName);
-    const compiledFilePath = path
-      .resolve(fileName)
-      .replace(path.resolve(path.join(process.cwd(), src)), '');
+    const compiledFilePath = path.relative(
+      path.resolve(src),
+      path.resolve(fileName)
+    );
     if (!compiledFiles.has(compiledFilePath)) {
       modifiedFile.add(fileName);
       compiledFiles.clear();

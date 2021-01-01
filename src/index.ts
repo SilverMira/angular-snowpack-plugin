@@ -164,9 +164,10 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       rootNames = parsedConfig.rootNames.map((file) => path.resolve(file));
       compilerHost = ng.createCompilerHost({ options: parsedTSConfig });
       compilerHost.writeFile = (fileName, contents) => {
-        fileName = path
-          .resolve(fileName)
-          .replace(path.resolve(parsedTSConfig.outDir!), '');
+        fileName = path.relative(
+          path.resolve(parsedTSConfig.outDir!),
+          path.resolve(fileName)
+        );
         pluginDebug(`File Compiled: ${fileName}`);
         builtSourceFiles.set(
           fileName,
@@ -189,9 +190,10 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       const sourceMap = options.isDev || buildSourceMap;
       pluginDebug(`Loading: ${options.filePath}`);
       await compileRootNames(options.isDev);
-      const relativeFilePathFromSrc = path
-        .resolve(options.filePath)
-        .replace(path.resolve(srcDir), '');
+      const relativeFilePathFromSrc = path.relative(
+        path.resolve(srcDir),
+        path.resolve(options.filePath)
+      );
       const fileBaseName = relativeFilePathFromSrc.replace('.ts', '');
       const result: SnowpackBuiltFile = {} as any;
       const sourceFile: SnowpackBuiltFile = {} as any;
@@ -231,10 +233,12 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
         if (recompiledResult) compilationResult = recompiledResult;
         // map the compiled files path back to its source
         const files = recompiledResult!.recompiledFiles
-          .map((file) => path.resolve(path.join(srcDir, file)))
-          .filter((file) => path.extname(file) === '.js')
-          .map((file) => file.replace(path.extname(file), '.ts'))
-          .filter((file) => file !== filePath);
+          .filter((file) => file !== filePath && path.extname(file) === '.js') // Filter self / sourcemaps from recompiled
+          .map((file) =>
+            path
+              .resolve(path.join(srcDir, file))
+              .replace(path.extname(file), '.ts')
+          ); // Map the compiled js file back to its source ts
         if (files.length === 0)
           // Not the best solution, but work for now, used when error happens during recompilation and no files were recompiled, forcing a reload to throw error to snowpack
           // rootNames[0] is presumably src/main.ts (anything would work though)
