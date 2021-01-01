@@ -13,7 +13,6 @@ import {
   RecompileFunctionAsync,
   watchCompileAsync,
 } from './compile';
-import { createStyleHandler } from './stylehandler';
 import execa from 'execa';
 import {
   AngularCriticalFiles,
@@ -60,7 +59,6 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   let angularCriticalFiles: AngularCriticalFiles;
   const builtSourceFiles = new Map<string, string>();
   const cwd = path.resolve(process.cwd());
-  const styleHandler = createStyleHandler();
 
   let rootNamesCompiled: boolean = false;
   let rootNamesCompiling: boolean = false;
@@ -177,13 +175,8 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
       compilerHost.readResource = async (fileName) => {
         pluginDebug(`Resource Read: ${fileName}`);
         const contents = await fs.readFile(fileName, 'utf-8');
-        if (styleHandler.needProcess(fileName)) {
-          pluginDebug(`Preprocessing Style: ${fileName}`);
-          const builtStyle = await styleHandler.process({ fileName, contents });
-          return builtStyle.css;
-        } else {
-          return contents;
-        }
+        // TODO: find a way to integrate with snowpack style plugins
+        return contents;
       };
     },
     async load(options: PluginLoadOptions) {
