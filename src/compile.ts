@@ -1,6 +1,7 @@
 import * as ng from '@angular/compiler-cli';
 import ts from 'typescript';
 import path from 'path';
+import { runTypeCheck } from './typeCheck';
 
 export interface CompileArgs {
   rootNames: string[];
@@ -162,51 +163,25 @@ export const watchCompile = ({
 /**
  * Based on `@angular/compiler-cli.performCompilation()`
  */
-export const performCompilationAsync = async ({
-  compilerHost,
-  compilerOptions,
-  rootNames,
-  oldProgram,
-}: CompileArgs): Promise<ng.PerformCompilationResult> => {
-  let program: ng.Program | undefined;
-  const diagnostics: (ng.Diagnostic | ts.Diagnostic)[] = [];
-  try {
-    program = ng.createProgram({
-      rootNames,
-      host: compilerHost,
-      options: compilerOptions,
-      oldProgram,
-    });
-    await program.loadNgStructureAsync();
-    diagnostics.push(...ng.defaultGatherDiagnostics(program));
-    // No errors
-    if (!diagnostics.some((d) => d.category === ts.DiagnosticCategory.Error)) {
-      const emitResult = program.emit();
-      diagnostics.push(...emitResult.diagnostics);
-      return { diagnostics, program, emitResult };
-    }
-    return { diagnostics, program };
-  } catch (e) {
-    let errMsg: string;
-    let code: number;
-    if (e['ngSyntaxError']) {
-      // don't report the stack for syntax errors as they are well known errors.
-      errMsg = e.message;
-      code = ng.DEFAULT_ERROR_CODE;
-    } else {
-      errMsg = e.stack;
-      // It is not a syntax error we might have a program with unknown state, discard it.
-      program = undefined;
-      code = ng.UNKNOWN_ERROR_CODE;
-    }
-    diagnostics.push({
-      category: ts.DiagnosticCategory.Error,
-      messageText: errMsg,
-      code,
-      source: ng.SOURCE,
-    });
-    return { diagnostics, program };
-  }
+export const performCompilationAsync = async (
+  { compilerHost, compilerOptions, rootNames, oldProgram }: CompileArgs,
+  typeCheck: boolean = true
+): Promise<ng.PerformCompilationResult> => {
+  const diagnostics: (ts.Diagnostic | ng.Diagnostic)[] = [];
+  const program = ng.createProgram({
+    rootNames,
+    host: compilerHost,
+    options: compilerOptions,
+    oldProgram,
+  });
+  await program.loadNgStructureAsync();
+  if (typeCheck)
+    diagnostics.push(
+      ...runTypeCheck(rootNames, compilerOptions, program, compilerHost)
+    );
+  const emitResult = program.emit();
+  diagnostics.push(...emitResult.diagnostics);
+  return { diagnostics, program, emitResult };
 };
 
 export const compileAsync = async ({
@@ -323,12 +298,15 @@ export const watchCompileAsync = async ({
       compiledFiles.clear();
       const oldProgram = cachedProgram;
       cachedProgram = undefined;
-      const recompileResult = await performCompilationAsync({
-        rootNames,
-        compilerHost,
-        compilerOptions,
-        oldProgram,
-      });
+      const recompileResult = await performCompilationAsync(
+        {
+          rootNames,
+          compilerHost,
+          compilerOptions,
+          oldProgram,
+        },
+        false
+      );
       cachedProgram = recompileResult.program;
       modifiedFile.clear();
       return {

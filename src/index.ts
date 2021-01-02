@@ -19,6 +19,9 @@ import {
   AngularJsonWrapper,
   readAngularJson,
 } from './configParser';
+import { createWorker, TypeCheckArgs } from './typeCheckWorker';
+import { getTSDiagnosticErrorFile } from './typeCheck';
+import worker from 'worker_threads';
 
 export interface AngularSnowpackPluginOptions {
   /** @default 'src' */
@@ -60,6 +63,7 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
   let recompile: RecompileFunctionAsync;
   let recompiledFiles: string[] = [];
   let compilationResult: ng.PerformCompilationResult;
+  let typeChecker: worker.Worker;
 
   let compilationReadyCb: (() => void)[] = [];
   const isCompilationReady = () => {
@@ -164,6 +168,22 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
           fileName,
           contents.replace(/\/\/# sourceMappingURL.*/, '') // required, to prevent multiple sourceMappingUrl as snowpack will append it if sourceMaps is enabled
         );
+        if (!typeChecker) {
+          typeChecker = createWorker();
+          typeChecker.on('message', (msg: ng.Diagnostics) => {
+            if (msg.length > 0) {
+              compilationResult.diagnostics = [
+                ...compilationResult.diagnostics,
+                ...msg,
+              ];
+              const errorFiles = getTSDiagnosticErrorFile(msg);
+              for (const file of errorFiles) {
+                recompiledFiles.push(file);
+                this.markChanged!(file);
+              }
+            }
+          });
+        }
       };
       compilerHost.readResource = async (fileName) => {
         pluginDebug(`Resource Read: ${fileName}`);
@@ -217,6 +237,14 @@ const plugin: SnowpackPluginFactory<AngularSnowpackPluginOptions> = (
         const recompiledResult = await recompile(filePath, srcDir);
         console.timeEnd('[angular] Incremental Build Finished, Took');
         if (recompiledResult) compilationResult = recompiledResult;
+        const workerMessage: TypeCheckArgs = {
+          action: 'run_check',
+          data: {
+            options: parsedTSConfig,
+            rootNames,
+          },
+        };
+        typeChecker.postMessage(workerMessage);
         // map the compiled files path back to its source
         const files = recompiledResult!.recompiledFiles
           .filter((file) => file !== filePath && path.extname(file) === '.js') // Filter self / sourcemaps from recompiled
