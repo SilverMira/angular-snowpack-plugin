@@ -24,7 +24,7 @@ export interface AngularArchitectSubset {
     styles: string[];
     scripts: string[];
   };
-  configuration: {
+  configurations: {
     [configurationName: string]: AngularArchitectConfig;
   };
 }

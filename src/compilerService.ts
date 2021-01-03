@@ -51,6 +51,7 @@ export class AngularCompilerService {
   private _typeCheckErrorListenerId = 0;
   private _typeCheckWorker?: TypeCheckWorker;
   private _lastTypeCheckResult: ng.Diagnostics = [];
+  private _fileReplacements = new Map<string, string>();
 
   constructor(
     angularJson: string,
@@ -93,6 +94,26 @@ export class AngularCompilerService {
     host.readResource = async (fileName) => {
       const contents = await fsp.readFile(fileName, 'utf-8');
       return contents;
+    };
+    const oriReadFile = host.readFile;
+    if (process.env.NODE_ENV === 'production') {
+      const replacementConfig = this.angularConfig.getProject(
+        this.angularProject
+      ).architect.build.configurations.production.fileReplacements;
+      replacementConfig.forEach((replacement) => {
+        this._fileReplacements.set(
+          path.resolve(replacement.replace),
+          path.resolve(replacement.with)
+        );
+      });
+    }
+    host.readFile = (fileName) => {
+      fileName = path.resolve(fileName);
+      if (this._fileReplacements.has(fileName)) {
+        const replaceWith = this._fileReplacements.get(fileName)!;
+        fileName = replaceWith;
+      }
+      return oriReadFile(fileName);
     };
     return host;
   }
