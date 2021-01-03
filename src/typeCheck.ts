@@ -56,3 +56,26 @@ export const getTSDiagnosticErrorFile = (diagnostics: ng.Diagnostics) => {
     )
   );
 };
+
+export const getTSDiagnosticErrorInFile = (
+  filePath: string,
+  diagnostics: ng.Diagnostics
+) => {
+  const tsErrors = diagnostics.filter((diagnostic) =>
+    ng.isTsDiagnostic(diagnostic)
+  ) as ts.Diagnostic[];
+  return tsErrors.filter(
+    (error) =>
+      path.resolve(
+        isTemplateDiagnostic(error)
+          ? error.componentFile.fileName
+          : error.file!.fileName
+      ) === path.resolve(filePath)
+  );
+};
+
+export const tsFormatDiagnosticHost: ts.FormatDiagnosticsHost = {
+  getCanonicalFileName: (fileName) => fileName,
+  getCurrentDirectory: () => path.resolve(process.cwd()),
+  getNewLine: () => '\n',
+};

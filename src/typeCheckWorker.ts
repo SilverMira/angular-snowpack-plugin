@@ -3,6 +3,7 @@ import * as ng from '@angular/compiler-cli';
 import { runTypeCheck } from './typeCheck';
 
 export type TypeCheckWorkerAction = 'run_check';
+export type TypeCheckWorker = worker.Worker;
 
 export interface TypeCheckArgs {
   data: {
@@ -12,13 +13,12 @@ export interface TypeCheckArgs {
   action: TypeCheckWorkerAction;
 }
 
-export const createWorker = () => {
+export const createTypeCheckWorker = () => {
   const typeCheckWorker = new worker.Worker(__filename);
   return typeCheckWorker;
 };
 
 const runWorker = () => {
-  console.log('Worker now running');
   worker.parentPort!.on('message', ({ action, data }: TypeCheckArgs) => {
     switch (action) {
       case 'run_check':

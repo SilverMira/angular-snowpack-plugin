@@ -1,15 +1,13 @@
 dependencies:
   execa: 5.0.0
 devDependencies:
-  '@angular/compiler': 11.0.5
-  '@angular/compiler-cli': 11.0.5_ae04eea250591f41b901d33a8893b81f
+  '@angular/compiler-cli': 11.0.5_typescript@4.0.5
   snowpack: 2.18.5
   typescript: 4.0.5
 lockfileVersion: 5.2
 packages:
-  /@angular/compiler-cli/11.0.5_ae04eea250591f41b901d33a8893b81f:
+  /@angular/compiler-cli/11.0.5_typescript@4.0.5:
     dependencies:
-      '@angular/compiler': 11.0.5
       '@babel/core': 7.12.10
       '@babel/types': 7.12.12
       canonical-path: 1.0.0
@@ -35,12 +33,6 @@ packages:
       typescript: '>=4.0 <4.1'
     resolution:
       integrity: sha512-1EbnDdK2Em9xpnbLCjw+9w2F0I6gl5AS6QAn03ztYX9ZooNzCeC6sT8qghzrNTFTV89nyIoAqyMtgcLS6udVkg==
-  /@angular/compiler/11.0.5:
-    dependencies:
-      tslib: 2.0.3
-    dev: true
-    resolution:
-      integrity: sha512-japxEn07P9z9FnW8ii+M5DIfgRAGNxl6QNQWKBkNo5ytN6iCAB7pVbJI0vn1AUT9TByV3+xDW/FNuoSuzsnX3w==
   /@babel/code-frame/7.12.11:
     dependencies:
       '@babel/highlight': 7.10.4
@@ -2265,7 +2257,6 @@ packages:
     resolution:
       integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==
 specifiers:
-  '@angular/compiler': ^11.0.5
   '@angular/compiler-cli': ^11.0.5
   execa: ^5.0.0
   snowpack: ^2.18.5
