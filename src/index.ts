@@ -1,6 +1,7 @@
 import { SnowpackPlugin, SnowpackPluginFactory } from 'snowpack';
 import { AngularCompilerService } from './compilerService';
 import path from 'path';
+import { ModuleKind } from 'typescript';
 
 export interface pluginOptions {
   /** @default 'src' */
@@ -13,6 +14,11 @@ export interface pluginOptions {
   ngccTargets?: string[];
   /** @default true */
   errorToBrowser?: boolean;
+  /**
+   * @default false
+   * This would only work on Angular11 projects, as it will use the hmr accept logic from Angular11
+   */
+  useHmr?: boolean;
 }
 
 const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
@@ -23,7 +29,9 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
   const angularProject = pluginOptions?.angularProject;
   const sourceDirectory = pluginOptions?.src || 'src';
   const errorToBrowser = pluginOptions?.errorToBrowser ?? true;
+  const useHmr = pluginOptions?.useHmr ?? false;
   const ngccTargets = pluginOptions?.ngccTargets || [];
+  const useSourceMaps = snowpackConfig.buildOptions.sourceMaps;
   ngccTargets.unshift(
     '@angular/core',
     '@angular/common',
@@ -36,11 +44,17 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
     angularProject
   );
   const skipRecompileFiles: string[] = [];
-  const index = compiler.getAngularCriticalFiles().index;
+  const { index, main } = compiler.getAngularCriticalFiles();
+
+  const knownEntrypoints = ['@angular/common'];
+  if (useHmr)
+    knownEntrypoints.push(
+      '@angular-devkit/build-angular/src/webpack/plugins/hmr/hmr-accept'
+    );
 
   const plugin: SnowpackPlugin = {
     name: 'angular-snowpack-plugin',
-    knownEntrypoints: ['@angular/common'],
+    knownEntrypoints,
     resolve: {
       input: ['.ts'],
       output: ['.js'],
@@ -59,14 +73,24 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
           }
         }
       });
+      compiler.ngConfiguration.options.inlineSources = compiler.ngConfiguration.options.sourceMap = useSourceMaps;
     },
-    async load({ filePath, isDev }) {
-      const useSourceMaps = isDev || snowpackConfig.buildOptions.sourceMaps;
-      await compiler.buildSource(isDev);
+    async load({ filePath, isDev, isHmrEnabled }) {
+      if (
+        useHmr &&
+        isHmrEnabled &&
+        compiler.ngConfiguration.options.module !== ModuleKind.ESNext
+      )
+        compiler.ngConfiguration.options.module = ModuleKind.ESNext;
+      await compiler.buildSource(isDev || isHmrEnabled);
       const error = compiler.getErrorInFile(filePath);
       if (error.length > 0)
         throw new Error(`[angular] ${compiler.formatDiagnostics(error)}`);
-      const result = compiler.getBuiltFile(filePath);
+      let result = compiler.getBuiltFile(filePath);
+      if (useHmr && isHmrEnabled && result && path.resolve(filePath) === main) {
+        result = Object.assign({}, result);
+        result.code = `import hmrAccept from '@angular-devkit/build-angular/src/webpack/plugins/hmr/hmr-accept';\n${result.code}\nif(import.meta.hot) hmrAccept(import.meta);\n`;
+      }
       return {
         '.js': {
           code: result?.code!,
