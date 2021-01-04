@@ -87,8 +87,9 @@ export class AngularCompilerService {
         path.resolve(this._ngCompilerOptions.outDir || this.sourceDirectory),
         path.resolve(fileName)
       );
-      // Prevent multiple sourceMappingUrl as snowpack will append it if sourceMaps is enabled
-      contents = contents.replace(/\/\/# sourceMappingURL.*/, '');
+      // If sourceMap is inlined, leave it in the source.
+      if (!this._ngCompilerOptions.inlineSourceMap)
+        contents = contents.replace(/\/\/# sourceMappingURL.*/, '');
       this._builtFiles.set(fileName, contents);
     };
     host.readResource = async (fileName) => {
@@ -283,5 +284,24 @@ export class AngularCompilerService {
 
   getAngularCriticalFiles() {
     return this._angularConfig.getResolvedFilePaths(this.angularProject);
+  }
+
+  useSourceMaps(state?: 'normal' | 'none' | 'inline', inlineSources?: boolean) {
+    if (inlineSources !== undefined)
+      this._ngCompilerOptions.inlineSources = inlineSources;
+    switch (state) {
+      case 'none':
+        this._ngCompilerOptions.sourceMap = this._ngCompilerOptions.inlineSourceMap = false;
+        this._ngCompilerOptions.inlineSources = false;
+        break;
+      case 'normal':
+        this._ngCompilerOptions.sourceMap = true;
+        this._ngCompilerOptions.inlineSourceMap = false;
+        break;
+      case 'inline':
+        this._ngCompilerOptions.inlineSourceMap = true;
+        this._ngCompilerOptions.sourceMap = false;
+        break;
+    }
   }
 }

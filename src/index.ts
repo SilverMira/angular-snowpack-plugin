@@ -45,12 +45,15 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
   );
   const skipRecompileFiles: string[] = [];
   const { index, main } = compiler.getAngularCriticalFiles();
+  compiler.useSourceMaps(useSourceMaps ? 'normal' : 'none', true);
 
   const knownEntrypoints = ['@angular/common'];
-  if (useHmr)
+  if (useHmr) {
     knownEntrypoints.push(
       '@angular-devkit/build-angular/src/webpack/plugins/hmr/hmr-accept'
     );
+    if (useSourceMaps) compiler.useSourceMaps('inline', true);
+  }
 
   const plugin: SnowpackPlugin = {
     name: 'angular-snowpack-plugin',
@@ -73,7 +76,6 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
           }
         }
       });
-      compiler.ngConfiguration.options.inlineSources = compiler.ngConfiguration.options.sourceMap = useSourceMaps;
     },
     async load({ filePath, isDev, isHmrEnabled }) {
       if (
