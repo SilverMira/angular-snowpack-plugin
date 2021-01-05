@@ -49,9 +49,7 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
 
   const knownEntrypoints = ['@angular/common'];
   if (useHmr) {
-    knownEntrypoints.push(
-      '@angular-devkit/build-angular/src/webpack/plugins/hmr/hmr-accept'
-    );
+    knownEntrypoints.push('angular-snowpack-plugin/vendor/hmr/hmr-accept');
     if (useSourceMaps) compiler.useSourceMaps('inline', true);
   }
 
@@ -91,7 +89,7 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
       let result = compiler.getBuiltFile(filePath);
       if (useHmr && isHmrEnabled && result && path.resolve(filePath) === main) {
         result = Object.assign({}, result);
-        result.code = `import hmrAccept from '@angular-devkit/build-angular/src/webpack/plugins/hmr/hmr-accept';\n${result.code}\nif(import.meta.hot) hmrAccept(import.meta);\n`;
+        result.code = `import hmrAccept from 'angular-snowpack-plugin/vendor/hmr/hmr-accept';\n${result.code}\nif(import.meta.hot) hmrAccept(import.meta);\n`;
       }
       return {
         '.js': {
