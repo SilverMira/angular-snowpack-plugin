@@ -1,7 +1,19 @@
 import * as ng from '@angular/compiler-cli';
 import * as ts from 'typescript';
 import path from 'path';
-import { isTemplateDiagnostic } from '@angular/compiler-cli/src/ngtsc/typecheck/diagnostics/';
+
+export interface TemplateDiagnostic extends ts.Diagnostic {
+  componentFile: ts.SourceFile;
+}
+
+export const isTemplateDiagnostic = (
+  diagnostic: ts.Diagnostic
+): diagnostic is TemplateDiagnostic => {
+  return (
+    diagnostic.hasOwnProperty('componentFile') &&
+    ts.isSourceFile((diagnostic as any).componentFile)
+  );
+};
 
 export const runTypeCheck = (
   rootNames: string[],

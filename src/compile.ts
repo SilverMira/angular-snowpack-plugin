@@ -21,8 +21,7 @@ export interface RecompileResult extends ng.PerformCompilationResult {
 }
 
 export type RecompileFunctionAsync = (
-  fileName: string,
-  src: string
+  fileName: string
 ) => Promise<RecompileResult>;
 
 /**
@@ -91,11 +90,8 @@ export const watchCompileAsync = async ({
     onError,
     sourceFiles
   ) => {
-    const srcRelativePath = path.relative(
-      path.resolve(compilerOptions.outDir!),
-      path.resolve(fileName)
-    );
-    compiledFiles.add(srcRelativePath);
+    const resolvedPath = path.resolve(fileName);
+    compiledFiles.add(resolvedPath);
     return oriWriteFile(
       fileName,
       data,
@@ -147,10 +143,7 @@ export const watchCompileAsync = async ({
   });
   cachedProgram = firstCompilation.program;
 
-  const recompile: RecompileFunctionAsync = async (
-    fileName: string,
-    src: string
-  ) => {
+  const recompile: RecompileFunctionAsync = async (fileName: string) => {
     // perhaps this function need debouncing like in perform_watch.ts
     fileName = path.normalize(fileName);
     fileCache.delete(fileName);

@@ -4,8 +4,6 @@ import path from 'path';
 import { ModuleKind } from 'typescript';
 
 export interface pluginOptions {
-  /** @default 'src' */
-  src?: string;
   /** @default 'angular.json' */
   angularJson?: string;
   /** @default defaultProject in angular.json */
@@ -27,7 +25,6 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
 ) => {
   const angularJson = pluginOptions?.angularJson || 'angular.json';
   const angularProject = pluginOptions?.angularProject;
-  const sourceDirectory = pluginOptions?.src || 'src';
   const errorToBrowser = pluginOptions?.errorToBrowser ?? true;
   const useHmr = pluginOptions?.useHmr ?? false;
   const ngccTargets = pluginOptions?.ngccTargets || [];
@@ -39,7 +36,6 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
   );
   const compiler = new AngularCompilerService(
     angularJson,
-    sourceDirectory,
     ngccTargets,
     angularProject
   );
