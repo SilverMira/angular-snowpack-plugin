@@ -10,6 +10,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
+    "build-hmr-accept": "tsc vendor/hmr/hmr-accept.ts --module esnext --moduleResolution node --declaration",
     "dev": "tsc --watch"
   },
   "author": "PhantasmalMira",
@@ -20,16 +21,27 @@
   "devDependencies": {
     "@angular/compiler": "^11.0.5",
     "@angular/compiler-cli": "^11.0.5",
+    "@angular/core": "^11.0.5",
+    "rxjs": "^6.6.3",
     "snowpack": "^2.18.5",
     "typescript": "4.0"
   },
   "peerDependencies": {
     "@angular/compiler": "*",
     "@angular/compiler-cli": "*",
+    "@angular/core": "*",
+    "rxjs": "*",
     "snowpack": "^2.18.5",
-    "typescript": "4.0"
+    "typescript": "*"
   },
   "files": [
-    "dist/**"
-  ]
+    "dist/**",
+    "vendor/**"
+  ],
+  "exports": {
+    ".": {
+      "default": "./dist/index.js"
+    },
+    "./vendor/hmr/hmr-accept": "./vendor/hmr/hmr-accept.js"
+  }
 }

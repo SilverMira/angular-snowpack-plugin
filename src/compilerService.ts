@@ -55,7 +55,6 @@ export class AngularCompilerService {
 
   constructor(
     angularJson: string,
-    private sourceDirectory: string,
     private ngccTargets: string[],
     private angularProject?: string
   ) {
@@ -67,6 +66,7 @@ export class AngularCompilerService {
     this._ngCompilerHost = this.configureCompilerHost(
       ng.createCompilerHost({ options: this._ngCompilerOptions })
     );
+    this._ngCompilerOptions.outDir = undefined;
   }
   private async runNgcc(targets: string[]) {
     for (const target of targets) {
@@ -83,12 +83,14 @@ export class AngularCompilerService {
 
   private configureCompilerHost(host: ng.CompilerHost): ng.CompilerHost {
     host.writeFile = (fileName, contents) => {
-      fileName = path.relative(
-        path.resolve(this._ngCompilerOptions.outDir || this.sourceDirectory),
-        path.resolve(fileName)
-      );
-      // Prevent multiple sourceMappingUrl as snowpack will append it if sourceMaps is enabled
-      contents = contents.replace(/\/\/# sourceMappingURL.*/, '');
+      fileName = path.resolve(fileName);
+      // path.relative(
+      //   path.resolve(this._ngCompilerOptions.outDir || this.sourceDirectory),
+      //   path.resolve(fileName)
+      // );
+      // If sourceMap is inlined, leave it in the source.
+      if (!this._ngCompilerOptions.inlineSourceMap)
+        contents = contents.replace(/\/\/# sourceMappingURL.*/, '');
       this._builtFiles.set(fileName, contents);
     };
     host.readResource = async (fileName) => {
@@ -161,10 +163,7 @@ export class AngularCompilerService {
         'Cannot recompile as angular was not build with watch mode enabled'
       );
     else {
-      const recompiledResult = await this._recompileFunction(
-        modifiedFile,
-        this.sourceDirectory
-      );
+      const recompiledResult = await this._recompileFunction(modifiedFile);
       this._lastCompilationResult = {
         diagnostics: recompiledResult.diagnostics,
         emitResult: recompiledResult.emitResult,
@@ -181,11 +180,7 @@ export class AngularCompilerService {
       this._typeCheckWorker!.postMessage(workerMessage);
       const recompiledFiles = recompiledResult.recompiledFiles
         .filter((file) => path.extname(file) === '.js')
-        .map((file) =>
-          path
-            .resolve(path.join(this.sourceDirectory, file))
-            .replace(path.extname(file), '.ts')
-        );
+        .map((file) => path.resolve(file).replace(path.extname(file), '.ts'));
       return {
         recompiledFiles,
         recompiledResult,
@@ -194,10 +189,7 @@ export class AngularCompilerService {
   }
 
   getBuiltFile(filePath: string): BuiltJSFile | null {
-    filePath = path.relative(
-      path.resolve(this.sourceDirectory),
-      path.resolve(filePath)
-    );
+    filePath = path.resolve(filePath);
     let result: BuiltJSFile | null = null;
     const codeFile = filePath.replace(path.extname(filePath), '.js');
     const mapFile = filePath.replace(path.extname(filePath), '.js.map');
@@ -283,5 +275,24 @@ export class AngularCompilerService {
 
   getAngularCriticalFiles() {
     return this._angularConfig.getResolvedFilePaths(this.angularProject);
+  }
+
+  useSourceMaps(state?: 'normal' | 'none' | 'inline', inlineSources?: boolean) {
+    if (inlineSources !== undefined)
+      this._ngCompilerOptions.inlineSources = inlineSources;
+    switch (state) {
+      case 'none':
+        this._ngCompilerOptions.sourceMap = this._ngCompilerOptions.inlineSourceMap = false;
+        this._ngCompilerOptions.inlineSources = false;
+        break;
+      case 'normal':
+        this._ngCompilerOptions.sourceMap = true;
+        this._ngCompilerOptions.inlineSourceMap = false;
+        break;
+      case 'inline':
+        this._ngCompilerOptions.inlineSourceMap = true;
+        this._ngCompilerOptions.sourceMap = false;
+        break;
+    }
   }
 }
