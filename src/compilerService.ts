@@ -67,7 +67,6 @@ export class AngularCompilerService {
       ng.createCompilerHost({ options: this._ngCompilerOptions })
     );
     this._ngCompilerOptions.outDir = undefined;
-    debugger;
   }
   private async runNgcc(targets: string[]) {
     for (const target of targets) {
