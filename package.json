@@ -1,6 +1,6 @@
 {
   "name": "angular-snowpack-plugin",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Snowpack Plugin for angular projects",
   "main": "dist/index.js",
   "repository": {
