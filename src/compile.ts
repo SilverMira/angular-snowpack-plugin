@@ -1,6 +1,7 @@
 import * as ng from '@angular/compiler-cli';
 import ts from 'typescript';
 import path from 'path';
+import fs from 'fs';
 import { runTypeCheck } from './typeCheck';
 
 export interface CompileArgs {
@@ -170,4 +171,33 @@ export const watchCompileAsync = async ({
     };
   };
   return { firstCompilation, recompile };
+};
+
+export const getProjectPackageImports = (
+  rootNames: string[],
+  options: ng.CompilerOptions
+) => {
+  const host = ng.createCompilerHost({ options });
+  const program = ng.createProgram({
+    rootNames,
+    host,
+    options,
+  });
+  const packages = new Set<string>();
+  for (const source of program.getTsProgram().getSourceFiles()) {
+    if (!source.fileName.includes('node_modules')) {
+      source.forEachChild((child) => {
+        if (ts.isImportDeclaration(child)) {
+          try {
+            if (ts.isStringLiteral(child.moduleSpecifier)) {
+              const packageName = child.moduleSpecifier.text;
+              fs.statSync(path.join('node_modules', packageName));
+              packages.add(packageName);
+            }
+          } catch (err) {}
+        }
+      });
+    }
+  }
+  return packages;
 };

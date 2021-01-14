@@ -28,7 +28,9 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
   const errorToBrowser = pluginOptions?.errorToBrowser ?? true;
   const useHmr = pluginOptions?.useHmr ?? false;
   const ngccTargets = pluginOptions?.ngccTargets || [];
-  const useSourceMaps = snowpackConfig.buildOptions.sourceMaps;
+  const useSourceMaps =
+    (snowpackConfig.buildOptions as any).sourceMaps ||
+    (snowpackConfig.buildOptions as any).sourcemap; // For snowpack 3
   ngccTargets.unshift(
     '@angular/core',
     '@angular/common',

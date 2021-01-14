@@ -1,10 +1,11 @@
 import { AngularJsonWrapper, readAngularJson } from './configParser';
 import * as ng from '@angular/compiler-cli';
-import fs, { promises as fsp } from 'fs';
+import * as ngcc from '@angular/compiler-cli/ngcc';
+import { promises as fsp } from 'fs';
 import path from 'path';
-import execa from 'execa';
 import {
   compileAsync,
+  getProjectPackageImports,
   RecompileFunctionAsync,
   watchCompileAsync,
 } from './compile';
@@ -52,6 +53,8 @@ export class AngularCompilerService {
   private _typeCheckWorker?: TypeCheckWorker;
   private _lastTypeCheckResult: ng.Diagnostics = [];
   private _fileReplacements = new Map<string, string>();
+  private _cwd = path.resolve(process.cwd());
+  private _tsConfig: string;
 
   constructor(
     angularJson: string,
@@ -59,35 +62,29 @@ export class AngularCompilerService {
     private angularProject?: string
   ) {
     this._angularConfig = readAngularJson(angularJson);
-    const { tsConfig } = this._angularConfig.getResolvedFilePaths(
+    this._tsConfig = this._angularConfig.getResolvedFilePaths(
       angularProject
-    );
-    this._ngConfiguration = ng.readConfiguration(tsConfig);
+    ).tsConfig;
+    this._ngConfiguration = ng.readConfiguration(this._tsConfig);
     this._ngCompilerHost = this.configureCompilerHost(
       ng.createCompilerHost({ options: this._ngCompilerOptions })
     );
     this._ngCompilerOptions.outDir = undefined;
   }
-  private async runNgcc(targets: string[]) {
-    for (const target of targets) {
-      const ngcc = execa('ngcc', ['-t', target]);
-      const { stdout } = await ngcc;
-      stdout.split('\n').forEach((line) => {
-        if (line !== '') console.log(`[angular] ${line}`);
-      });
-    }
-    console.log(
-      '[angular] Try clearing snowpack development cache with "snowpack --reload" if facing errors during dev mode'
-    );
+
+  private async ngcc(target: string) {
+    console.debug(`[angular] ngcc processing: ${target}`);
+    await ngcc.process({
+      async: true,
+      basePath: this._cwd,
+      tsConfigPath: path.resolve(this._tsConfig),
+      targetEntryPointPath: path.resolve(path.join('node_modules', target)),
+    });
   }
 
   private configureCompilerHost(host: ng.CompilerHost): ng.CompilerHost {
     host.writeFile = (fileName, contents) => {
       fileName = path.resolve(fileName);
-      // path.relative(
-      //   path.resolve(this._ngCompilerOptions.outDir || this.sourceDirectory),
-      //   path.resolve(fileName)
-      // );
       // If sourceMap is inlined, leave it in the source.
       if (!this._ngCompilerOptions.inlineSourceMap)
         contents = contents.replace(/\/\/# sourceMappingURL.*/, '');
@@ -137,7 +134,18 @@ export class AngularCompilerService {
         compilerHost: this._ngCompilerHost,
         compilerOptions: this._ngCompilerOptions,
       };
-      await this.runNgcc(this.ngccTargets);
+      const importedPackages = getProjectPackageImports(
+        this._ngConfiguration.rootNames,
+        this._ngCompilerOptions
+      );
+      importedPackages.add('@angular/common');
+      this.ngccTargets.forEach((t) => importedPackages.add(t));
+      for (const target of importedPackages) {
+        await this.ngcc(target);
+      }
+      console.warn(
+        '[angular] Try clearing snowpack development cache with "snowpack --reload" if facing errors during dev mode'
+      );
       if (watch) {
         this.registerTypeCheckWorker();
         const result = await watchCompileAsync(compileArgs);
