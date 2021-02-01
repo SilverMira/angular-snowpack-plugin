@@ -3,6 +3,7 @@ import * as ng from '@angular/compiler-cli';
 import * as ngcc from '@angular/compiler-cli/ngcc';
 import { promises as fsp } from 'fs';
 import path from 'path';
+import { styleResourceManager, STYLES_FILEEXT_REGEX } from './styleResource';
 import {
   compileAsync,
   getProjectPackageImports,
@@ -55,6 +56,7 @@ export class AngularCompilerService {
   private _fileReplacements = new Map<string, string>();
   private _cwd = path.resolve(process.cwd());
   private _tsConfig: string;
+  private _isWatch: boolean = false;
 
   constructor(
     angularJson: string,
@@ -91,8 +93,14 @@ export class AngularCompilerService {
       this._builtFiles.set(fileName, contents);
     };
     host.readResource = async (fileName) => {
-      const contents = await fsp.readFile(fileName, 'utf-8');
-      return contents;
+      // If not reading a style, ie: template, just read from disk
+      // or when the snowpack dev server was not started through `ngsnow` (contains code to make preprocess work)
+      if (
+        !fileName.match(STYLES_FILEEXT_REGEX) ||
+        (this._isWatch && !styleResourceManager.hasListener)
+      )
+        return await fsp.readFile(fileName, 'utf-8');
+      else return await styleResourceManager.requestStyle(fileName);
     };
     const oriReadFile = host.readFile;
     if (process.env.NODE_ENV === 'production') {
@@ -129,6 +137,12 @@ export class AngularCompilerService {
     if (this._buildStatus.built) return;
     else if (!this._buildStatus.built && !this._buildStatus.building) {
       this._buildStatus.building = true;
+      this._isWatch = watch;
+      if (watch && !styleResourceManager.hasListener) {
+        console.warn(
+          '[angular] styleResourceManager has no listener, run "ngsnow" to enable style preprocessing.'
+        );
+      }
       const compileArgs = {
         rootNames: this._ngConfiguration.rootNames,
         compilerHost: this._ngCompilerHost,
@@ -143,10 +157,10 @@ export class AngularCompilerService {
       for (const target of importedPackages) {
         await this.ngcc(target);
       }
-      console.warn(
-        '[angular] Try clearing snowpack development cache with "snowpack --reload" if facing errors during dev mode'
-      );
       if (watch) {
+        console.warn(
+          '[angular] Try clearing snowpack development cache with "snowpack --reload" if facing errors during dev mode'
+        );
         this.registerTypeCheckWorker();
         const result = await watchCompileAsync(compileArgs);
         this._recompileFunction = result.recompile;
