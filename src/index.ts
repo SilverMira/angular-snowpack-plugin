@@ -2,7 +2,8 @@ import { SnowpackPlugin, SnowpackPluginFactory } from 'snowpack';
 import { AngularCompilerService } from './compilerService';
 import path from 'path';
 import { ModuleKind } from 'typescript';
-
+import { styleResourceManager, STYLES_FILEEXT_REGEX } from './styleResource';
+export { styleResourceManager } from './styleResource';
 export interface pluginOptions {
   /** @default 'angular.json' */
   angularJson?: string;
@@ -28,9 +29,7 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
   const errorToBrowser = pluginOptions?.errorToBrowser ?? true;
   const useHmr = pluginOptions?.useHmr ?? false;
   const ngccTargets = pluginOptions?.ngccTargets || [];
-  const useSourceMaps =
-    (snowpackConfig.buildOptions as any).sourceMaps ||
-    (snowpackConfig.buildOptions as any).sourcemap; // For snowpack 3
+  const useSourceMaps = snowpackConfig.buildOptions.sourcemap; // For snowpack 3
   ngccTargets.unshift(
     '@angular/core',
     '@angular/common',
@@ -102,6 +101,7 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
         skipRecompileFiles.splice(skipRecompileFiles.indexOf(filePath), 1);
         return;
       }
+      styleResourceManager.purgeCache(filePath);
       const recompile = await compiler.recompile(filePath);
       recompile.recompiledFiles = recompile.recompiledFiles.filter(
         (file) => file !== filePath
@@ -109,7 +109,7 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
       skipRecompileFiles.push(...recompile.recompiledFiles);
       recompile.recompiledFiles.forEach((file) => this.markChanged!(file));
     },
-    async transform({ id, contents }) {
+    async transform({ id, contents, fileExt }) {
       id = path.resolve(id);
       if (id === index) {
         const {
@@ -125,6 +125,8 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
             '</body>',
             `${injectPolyfills}${injectMain}${injectScripts.join('')}\n</body>`
           );
+      } else if (fileExt.match(STYLES_FILEEXT_REGEX)) {
+        styleResourceManager.submitStyle(id, contents.toString('utf-8'));
       }
     },
   };

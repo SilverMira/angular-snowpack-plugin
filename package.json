@@ -1,6 +1,6 @@
 {
   "name": "angular-snowpack-plugin",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Snowpack Plugin for angular projects",
   "main": "dist/index.js",
   "repository": {
@@ -29,7 +29,7 @@
     "@angular/compiler-cli": "*",
     "@angular/core": "*",
     "rxjs": "*",
-    "snowpack": ">=2.0",
+    "snowpack": ">=3.0",
     "typescript": "*"
   },
   "files": [
@@ -41,5 +41,8 @@
       "default": "./dist/index.js"
     },
     "./vendor/hmr/hmr-accept": "./vendor/hmr/hmr-accept.js"
+  },
+  "bin": {
+    "ngsnow": "./dist/ngsnow.js"
   }
 }
