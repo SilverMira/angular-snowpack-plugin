@@ -2,9 +2,11 @@
 
 This is a highly experimental snowpack plugin. Has only been tested to work on brand new Angular >= 9 project generated through `ng new <project_name>`. Working setup could be seen [here](https://github.com/phantasmalmira/AngularSnowpackDemo).
 
-## Style Preprocessors
+## Style Preprocessors (USE `ngsnow` INSTEAD OF `snowpack dev`)
 
-This plugin does not support style preprocessing yet, implementing a working style preprocessing plugin is simple enough, but it would mean that the plugin has to preprocess the styles as well, an ideal solution is to use other snowpack plugins to feed their output into this plugin, which for the time being I haven't found the solution for yet. Please do contribute by opening a pull request if you have an idea.
+Starting from version `2.3.0`, style pre/post-processing is now supported with caveats. `snowpack dev` will not support this feature, use `ngsnow` instead. `ngsnow` is a wrapper around `snowpack dev` that will enable this feature.
+
+Sass is tested along with PostCSS, TailwindCSS tested to fully work with `@apply` rules.
 
 ## Usage
 
@@ -59,7 +61,7 @@ npm i --save-dev angular-snowpack-plugin snowpack
 }
 ```
 
-Run `snowpack dev` or `snowpack build`.
+Run `snowpack dev` (`ngsnow` for style pre/post-processing capabilities) or `snowpack build`.
 
 ## Important Notes
 
