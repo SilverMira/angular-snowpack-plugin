@@ -4,7 +4,9 @@ This is a highly experimental snowpack plugin. Has only been tested to work on b
 
 ## Style Preprocessors (USE `ngsnow` INSTEAD OF `snowpack dev`)
 
-Starting from version `2.3.0`, style pre/post-processing is now supported with caveats. `snowpack dev` will not support this feature, use `ngsnow` instead. `ngsnow` is a wrapper around `snowpack dev` that will enable this feature.
+Starting from version `2.3.0`, style pre/post-processing is now supported with caveats. `snowpack dev` will not support this feature, use `ngsnow` instead. `ngsnow` is a wrapper around `snowpack dev` that will enable this feature. `ngsnow` is bundled with the plugin, run `ngsnow` by using `npx ngsnow` or `package.json` run scripts after installing. 
+
+Install appropriate snowpack plugins such as [@snowpack/plugin-sass](https://www.npmjs.com/package/@snowpack/plugin-sass) or [@snowpack/plugin-postcss](https://www.npmjs.com/package/@snowpack/plugin-postcss) to enable style pre/post-processing.
 
 Sass is tested along with PostCSS, TailwindCSS tested to fully work with `@apply` rules.
 
