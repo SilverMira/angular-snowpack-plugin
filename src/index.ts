@@ -38,10 +38,11 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
   const compiler = new AngularCompilerService(
     angularJson,
     ngccTargets,
+    snowpackConfig,
     angularProject
   );
   const skipRecompileFiles: string[] = [];
-  const { index, main } = compiler.getAngularCriticalFiles();
+  const { index, main, scripts, styles } = compiler.getAngularCriticalFiles();
   compiler.useSourceMaps(useSourceMaps ? 'normal' : 'none', true);
 
   const knownEntrypoints = ['@angular/common'];
@@ -49,6 +50,15 @@ const pluginFactory: SnowpackPluginFactory<pluginOptions> = (
     knownEntrypoints.push('angular-snowpack-plugin/vendor/hmr/hmr-accept');
     if (useSourceMaps) compiler.useSourceMaps('inline', true);
   }
+  // Styles and scripts from npm packages
+  [...scripts, ...styles]
+    .map((filePath) => path.relative(process.cwd(), filePath))
+    .filter((filePath) => filePath.startsWith('node_modules'))
+    .forEach((filePath) =>
+      knownEntrypoints.push(
+        path.relative(path.resolve('node_modules'), path.resolve(filePath))
+      )
+    );
 
   const plugin: SnowpackPlugin = {
     name: 'angular-snowpack-plugin',
