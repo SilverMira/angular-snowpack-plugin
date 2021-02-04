@@ -20,6 +20,7 @@ import {
   getTSDiagnosticErrorInFile,
   tsFormatDiagnosticHost,
 } from './typeCheck';
+import { SnowpackConfig } from 'snowpack';
 
 interface BuildStatus {
   built: boolean;
@@ -61,6 +62,7 @@ export class AngularCompilerService {
   constructor(
     angularJson: string,
     private ngccTargets: string[],
+    private snowpackConfig: SnowpackConfig,
     private angularProject?: string
   ) {
     this._angularConfig = readAngularJson(angularJson);
@@ -245,16 +247,38 @@ export class AngularCompilerService {
     } = this._angularConfig.getResolvedFilePaths(this.angularProject);
     const indexDir = path.dirname(index);
     const injectStyles = styles.map((style) => {
-      const relativeUrl = path
-        .relative(indexDir, style)
-        .replace(path.extname(style), '.css');
-      return `<link rel="stylesheet" href="${relativeUrl}">`;
+      const relativeFromRoot = path.relative(this._cwd, style);
+      if (relativeFromRoot.startsWith('node_modules')) {
+        const webModuleStylePath = path
+          .join(
+            this.snowpackConfig.buildOptions.metaUrlPath,
+            relativeFromRoot.replace('node_modules', 'pkg')
+          )
+          .replace(path.extname(style), '.css');
+        return `<link rel="stylesheet" href="${webModuleStylePath}">`;
+      } else {
+        const relativeUrl = path
+          .relative(indexDir, style)
+          .replace(path.extname(style), '.css');
+        return `<link rel="stylesheet" href="${relativeUrl}">`;
+      }
     });
     const injectScripts = scripts.map((script) => {
-      const relativeUrl = path
-        .relative(indexDir, script)
-        .replace(path.extname(script), '.js');
-      return `<script defer type="module" src="${relativeUrl}"></script>`;
+      const relativeFromRoot = path.relative(this._cwd, script);
+      if (relativeFromRoot.startsWith('node_modules')) {
+        const webModuleScriptPath = path
+          .join(
+            this.snowpackConfig.buildOptions.metaUrlPath,
+            relativeFromRoot.replace('node_modules', 'pkg')
+          )
+          .replace(path.extname(script), '.js');
+        return `<script defer type="module" src="${webModuleScriptPath}"></script>`;
+      } else {
+        const relativeUrl = path
+          .relative(indexDir, script)
+          .replace(path.extname(script), '.js');
+        return `<script defer type="module" src="${relativeUrl}"></script>`;
+      }
     });
     const relativePolyfillsUrl = path
       .relative(indexDir, polyfills)
